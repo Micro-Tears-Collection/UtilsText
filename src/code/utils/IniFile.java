@@ -62,10 +62,16 @@ public class IniFile {
         set(lines, keys);
     }
     
-    private void set(String[] lines, boolean keys) {
+    public IniFile(String[] lines, boolean keys) {
+        hashtable = new Hashtable();
+        set(lines, keys);
+    }
+    
+    public void set(String[] lines, boolean keys) {
         Hashtable tmp = hashtable;
         for(int i = 0; i < lines.length; ++i) {
             if(lines[i].length() <= 0) continue;
+            if(lines[i].startsWith("#") || lines[i].startsWith(";")) continue;
             
             int charIndex;
             if(lines[i].charAt(0) == '[' && keys) {
