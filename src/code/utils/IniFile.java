@@ -20,6 +20,10 @@ public class IniFile {
     public static Object[] createGroups(String file) {
         file = StringTools.getStringFromResource(file);
         String[] lines = StringTools.cutOnStrings(file, '\n');
+        return createGroups(lines);
+    }
+    
+    public static Object[] createGroups(String[] lines) {
         
         Vector names = new Vector();
         Vector groups = new Vector();
