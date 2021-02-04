@@ -1,5 +1,7 @@
 package code.utils;
 
+import java.io.IOException;
+import java.io.PrintStream;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Vector;
@@ -13,8 +15,8 @@ public class IniFile {
     }
     
     public static IniFile createFromResource(String file, boolean keys) {
-        file = StringTools.getStringFromResource(file); // записывает все строки из файла в одну строку, потом
-        return new IniFile(file, keys);               // по этой строке заполняет hashtable
+        file = StringTools.getStringFromResource(file);
+        return new IniFile(file, keys);
     }
     
     public static Object[] createGroups(String file) {
@@ -24,36 +26,63 @@ public class IniFile {
     }
     
     public static Object[] createGroups(String[] lines) {
+        Vector groupsNames = new Vector();
+        Vector allGroups = new Vector();
         
-        Vector names = new Vector();
-        Vector groups = new Vector();
+        Hashtable currentGroup = null;
         
-        Hashtable tmp = null;
-        
-        for(int i = 0; i < lines.length; ++i) {
-            if(lines[i].length() <= 0) continue;
+        for(int i=0; i<lines.length; i++) {
+            String line = lines[i];
+            if(line.length() <= 0) continue;
+            if(line.startsWith("#") || lines[i].startsWith(";")) continue;
             
             int charIndex;
-            if(lines[i].charAt(0) == '[') {
-                names.addElement( lines[i].substring(1, lines[i].length() - 1) );
-                tmp = new Hashtable();
-                groups.addElement(new IniFile(tmp));
-            } else if ((charIndex = lines[i].indexOf('=')) >= 0) {
-                String key = lines[i].substring(0, charIndex).trim();
-                String val = lines[i].substring(charIndex + 1).trim();
-                tmp.put(key, val);
+            if(line.charAt(0) == '[') {
+                //Group
+                groupsNames.addElement( line.substring(1, line.length() - 1) );
+                currentGroup = new Hashtable();
+                allGroups.addElement(new IniFile(currentGroup));
+            } else if ((charIndex = line.indexOf('=')) >= 0) {
+                //Value
+                String key = line.substring(0, charIndex).trim();
+                String val = line.substring(charIndex + 1).trim();
+                
+                currentGroup.put(key, val);
             }
         }
         
-        String[] namesM = new String[names.size()];
+        String[] namesM = new String[groupsNames.size()];
         IniFile[] groupsM = new IniFile[namesM.length];
         
         for(int i=0; i<namesM.length; i++) {
-            namesM[i] = (String)names.elementAt(i);
-            groupsM[i] = (IniFile)groups.elementAt(i);
+            namesM[i] = (String)groupsNames.elementAt(i);
+            groupsM[i] = (IniFile)allGroups.elementAt(i);
         }
         
         return new Object[]{namesM, groupsM};
+    }
+    
+    public static void save(Hashtable hashtable, PrintStream stream) throws IOException {
+        Enumeration keys = hashtable.keys();
+        Enumeration els = hashtable.elements();
+        
+        while(keys.hasMoreElements()) {
+            String key = (String) keys.nextElement();
+            Object obj = els.nextElement();
+            
+            if(obj instanceof Hashtable) {
+                stream.print('[');
+                stream.print(key);
+                stream.print("]\n");
+                
+                save((Hashtable)obj, stream);
+            } else if(obj instanceof String) {
+                stream.print(key);
+                stream.print('=');
+                stream.print(obj);
+                stream.print('\n');
+            }
+        }
     }
    
     public IniFile(Hashtable hash) {
@@ -71,32 +100,42 @@ public class IniFile {
         set(lines, keys);
     }
     
-    public void set(String[] lines, boolean keys) {
-        Hashtable tmp = hashtable;
-        for(int i = 0; i < lines.length; ++i) {
-            if(lines[i].length() <= 0) continue;
-            if(lines[i].startsWith("#") || lines[i].startsWith(";")) continue;
+    public void set(String[] lines, boolean useGroups) {
+        Hashtable currentGroup = hashtable;
+        
+        for(int i=0; i<lines.length; i++) {
+            String line = lines[i];
+            if(line.length() <= 0) continue;
+            if(line.startsWith("#") || line.startsWith(";")) continue;
             
             int charIndex;
-            if(lines[i].charAt(0) == '[' && keys) {
-                String key = lines[i].substring(1, lines[i].length() - 1);
-                tmp = new Hashtable();
-                hashtable.put(key,tmp);
-            } else if ((charIndex = lines[i].indexOf('=')) >= 0) {
-                String key = lines[i].substring(0, charIndex).trim();
-                String val = lines[i].substring(charIndex + 1).trim();
-                tmp.put(key, val);
+            if(line.charAt(0) == '[' && useGroups) {
+                //Group
+                String group = line.substring(1, line.length() - 1);
+                currentGroup = new Hashtable();
+                
+                hashtable.put(group, currentGroup);
+            } else if ((charIndex = line.indexOf('=')) >= 0) {
+                //Value
+                String key = line.substring(0, charIndex).trim();
+                String val = line.substring(charIndex + 1).trim();
+                
+                currentGroup.put(key, val);
             }
         }
     }
+    
+    public void save(PrintStream ps) throws IOException {
+        IniFile.save(hashtable, ps);
+    }
 
-    //Ключи и группы
+    //Stuff
     
     public String[] keys() {
         String[] out = new String[hashtable.size()];
         Enumeration keys = hashtable.keys();
         
-        for(int i=0;i<out.length;i++) {
+        for(int i=0; i<out.length; i++) {
             out[i] = (String)keys.nextElement();
         }
         
@@ -107,15 +146,20 @@ public class IniFile {
         Hashtable[] out = new Hashtable[hashtable.size()];
         Enumeration hashtables = hashtable.elements();
         
-        for(int i=0;i<out.length;i++) {
+        for(int i=0; i<out.length; i++) {
             out[i] = (Hashtable)hashtables.nextElement();
         }
         
         return out;
     }
     
+    public boolean groupExists(String group) {
+        return hashtable.get(group) != null;
+    }
+    
     public void put(String group, String key, String value) {
-        Object val = hashtable.get(key);
+        Object val = hashtable.get(group);
+        
         if(val instanceof Hashtable) ((Hashtable)val).put(key, value);
         else {
             Hashtable n = new Hashtable();
@@ -128,9 +172,7 @@ public class IniFile {
         hashtable.put(key, value);
     }
     
-    public boolean groupExists(String group) {
-        return hashtable.get(group) != null;
-    }
+    //Groups and keys
     
     public String get(String group, String key) {
         Object val = hashtable.get(group);
@@ -139,56 +181,49 @@ public class IniFile {
         return null;
     }
     
-    public String getDef(String group, String key, String def) {
+    public String getDef(String group, String key, String defaultValue) {
         String val = null;
         Object hash = hashtable.get(group);
         if(hash!=null && hash instanceof Hashtable) val = (String)((Hashtable)hash).get(key);
         
-        if(val == null) return def;
-        return val;
+        return val == null ? defaultValue : val;
     }
 
     public byte getByte(String group, String key) {
-        return StringTools.parseByte(get(group,key));
+        return StringTools.parseByte(get(group, key));
     }
     
     public float getFloat(String group, String key) {
-        return StringTools.parseFloat(get(group,key));
+        return StringTools.parseFloat(get(group, key));
+    }
+    
+    public float getFloat(String group, String key, float defaultValue) {
+        String tmp = get(group, key);
+        return tmp == null ? defaultValue : StringTools.parseFloat(tmp);
     }
 
     public int getInt(String group, String key) {
-        return StringTools.parseInt(get(group,key));
+        return StringTools.parseInt(get(group, key));
+    }
+
+    public int getInt(String group, String key, int defaultValue) {
+        String tmp = get(group, key);
+        return tmp == null ? defaultValue : StringTools.parseInt(tmp);
     }
     
     public long getLong(String group, String key) {
-        return StringTools.parseLong(get(group,key));
+        return StringTools.parseLong(get(group, key));
     }
     
-    public float getFloat(String group, String key, float def) {
-        String tmp = get(group,key);
-        if(tmp == null) return def;
-        return StringTools.parseFloat(tmp);
-    }
-
-    public int getInt(String group, String key, int def) {
-        String tmp = get(group,key);
-        if(tmp == null) return def;
-        return StringTools.parseInt(tmp);
-    }
-    
-    //Только ключи
+    //Only keys
     public String get(String key) {
         Object val = hashtable.get(key);
-        if(val!=null && val instanceof String) return (String)val;
-        
-        return null;
+        return (val != null && val instanceof String) ? (String)val : null;
     }
     
     public String getDef(String key, String def) {
         Object val = hashtable.get(key);
-        if(val!=null && val instanceof String) return (String)val;
-        
-        return def;
+        return (val != null && val instanceof String) ? (String)val : def;
     }
 
     public byte getByte(String key) {
@@ -199,63 +234,21 @@ public class IniFile {
         return StringTools.parseFloat(get(key));
     }
     
+    public float getFloat(String key, float def) {
+        String tmp = get(key);
+        return tmp == null ? def : StringTools.parseFloat(tmp);
+    }
+    
     public int getInt(String key) {
         return StringTools.parseInt(get(key));
+    }
+
+    public int getInt(String key, int def) {
+        String tmp = get(key);
+        return tmp == null ? def : StringTools.parseInt(tmp);
     }
     
     public long getLong(String key) {
         return StringTools.parseLong(get(key));
     }
-    
-    public float getFloat(String key, float def) {
-        String tmp = get(key);
-        if(tmp == null) return def;
-        return StringTools.parseFloat(tmp);
-    }
-
-    public int getInt(String key, int def) {
-        String tmp = get(key);
-        if(tmp == null) return def;
-        return StringTools.parseInt(tmp);
-    }
-
-    /* What the hell is this
-    public static String removeSpaces(String s) {
-        char[] array = s.toCharArray();
-
-        int sub = 0;
-        for (int i = 0; i < array.length; i++) {
-            if (array[i] == ' ') {
-                int back = 0;
-                for (int l = i; l >= 0; l--) {
-                    if (array[l] == '"') back++;
-                }
-
-                if (back % 2 != 0) sub++;
-            }
-        }
-
-        char[] array2 = new char[array.length - sub];
-        sub = 0;
-        for (int i = 0; i < array.length; i++) {
-            if (array[i] == ' ') {
-                int back = 0;
-                for (int l = i; l >= 0; l--) {
-                    if (array[l] == '"') {
-                        back++;
-                    }
-                }
-
-                if (back % 2 == 0) {
-                    array2[sub] = array[i];
-                    sub++;
-                }
-            } else {
-                array2[sub] = array[i];
-                sub++;
-            }
-        }
-        return new String(array2);
-    }
-    */
 }

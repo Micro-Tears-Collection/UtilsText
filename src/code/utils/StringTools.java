@@ -12,10 +12,14 @@ public class StringTools {
             is = (new Object()).getClass().getResourceAsStream(file);
             StringBuffer str = new StringBuffer();
 
-            int ch;
-            while((ch = is.read()) != -1) {
-                ch = ch >= 192 && ch <= 255?ch + 848:ch; //windows 1251 to utf8
-                if(ch != '\r') str.append((char) ch);
+            while(true) {
+                int ch = is.read();
+                if(ch == -1) break;
+                if(ch == '\r') continue;
+                
+                if(ch >= 192 && ch <= 255) ch = ch + 848; //windows 1251 to utf8
+                
+                str.append((char) ch);
             }
 
             is.close();
@@ -36,11 +40,11 @@ public class StringTools {
         Vector fragments = new Vector();
       
         int start = 0;
-        while(start<text.length()) {
+        while(start < text.length()) {
             int end = text.indexOf(divider, start);
             if(end == -1) end = text.length();
             
-            if(start<end) fragments.addElement(text.substring(start,end));
+            if(start < end) fragments.addElement(text.substring(start,end));
             
             start = end+1;
         }
@@ -63,8 +67,8 @@ public class StringTools {
         Vector fragments = fragments(str, d);
         int[] out = new int[fragments.size()];
         
-        for(int i=0;i<out.length;i++) {
-            out[i] = parseInt((String)fragments.elementAt(i));
+        for(int i=0; i<out.length; i++) {
+            out[i] = parseInt((String) fragments.elementAt(i));
         }
         
         return out;
@@ -76,8 +80,8 @@ public class StringTools {
         Vector fragments = fragments(str, d);
         float[] out = new float[fragments.size()];
         
-        for(int i=0;i<out.length;i++) {
-            out[i] = parseFloat((String)fragments.elementAt(i));
+        for(int i=0; i<out.length; i++) {
+            out[i] = parseFloat((String) fragments.elementAt(i));
         }
         
         return out;
@@ -94,7 +98,7 @@ public class StringTools {
     public static int cleverParseInt(String val) {
         val = val.trim();
         int ind = val.indexOf('.');
-        if(ind>-1) val = val.substring(0,ind);
+        if(ind > -1) val = val.substring(0, ind); //floating point -> integer
         return Integer.parseInt(val);
     }
     
@@ -109,26 +113,29 @@ public class StringTools {
     public static boolean isNumeric(String s) {
         if(s == null) return false;
         s = s.trim();
-        for(int i=0;i<s.length();i++) {
+        
+        for(int i=0; i<s.length(); i++) {
             char ch = s.charAt(i);
-            if(ch!='-' && !Character.isDigit(ch)) return false;
+            if(ch != '-' && !Character.isDigit(ch)) return false;
         }
+        
         return true;
     }
     
     public static String deleteNonNumeric(String s) {
-        while (s.length() > 0 && s.charAt(0) != '-' && !Character.isDigit(s.charAt(0))) {
+        while(s.length() > 0 && !Character.isDigit(s.charAt(0)) && s.charAt(0) != '-') {
             s = s.substring(1, s.length());
         }
-        while (s.length() > 0 && s.charAt(s.length() - 1) != '-' && !Character.isDigit(s.charAt(s.length()-1))) {
-            s = s.substring(0, s.length() - 1);
+        
+        while(s.length() > 0 && !Character.isDigit(s.charAt(s.length()-1))) {
+            s = s.substring(0, s.length()-1);
         }
+        
         return s;
     }
     
-    
     public static int getRGB(String rgbs, char div) {
-        int[] rgb = cutOnInts(rgbs,div);
+        int[] rgb = cutOnInts(rgbs, div);
         return (rgb[0]<<16) | (rgb[1]<<8) | rgb[2];
     }
     
@@ -136,15 +143,16 @@ public class StringTools {
         int col = 0;
         argb = argb.toUpperCase();
         
-        for(int i=1;i<argb.length();i++) {
+        for(int i=1; i<argb.length(); i++) {
             char ch = argb.charAt(i);
             int val;
             
-            if(ch>='0' && ch<='9') val = ch-'0';
+            if(Character.isDigit(ch)) val = ch-'0';
             else val = ch-'A'+10;
             
-            col |= val<<((argb.length()-i-1)*4);
+            col |= val << ((6-i)*4);
         }
+        
         return col;
     }
 
